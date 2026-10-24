@@ -17,11 +17,32 @@
 #include <string.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <dirent.h>
 #include <vector>
 #include <string>
 #include <iostream>
 #include "command.h"
 #include "tokenizer.h"
+
+bool matchesPattern(const char *name, const char *pattern)
+{
+    if (*pattern == '\0')
+        return *name == '\0';
+
+    if (*pattern == '*')
+    {
+        return matchesPattern(name, pattern + 1) ||
+               (*name != '\0' && matchesPattern(name + 1, pattern));
+    }
+
+    if (*pattern == '?' || *pattern == *name)
+    {
+        return *name != '\0' &&
+               matchesPattern(name + 1, pattern + 1);
+    }
+
+    return false;
+}
 
 
 void parse(std::vector<Token> &tokens)
@@ -63,8 +84,43 @@ if (token.type == TOKEN_COMMAND || token.type == TOKEN_ARGUMENT)
         continue;
     }
 
+    if (token.value.find('*') != std::string::npos ||
+    token.value.find('?') != std::string::npos)
+{
+    DIR *dir = opendir(".");
+    
+    if (dir != NULL)
+    {
+        struct dirent *entry;
+        bool found = false;
+
+        while ((entry = readdir(dir)) != NULL)
+        {
+            if (entry->d_name[0] == '.')
+                continue;
+
+            if (matchesPattern(entry->d_name, token.value.c_str()))
+            {
+                char *argument = strdup(entry->d_name);
+                currentSimpleCommand->insertArgument(argument);
+                found = true;
+            }
+        }
+
+        closedir(dir);
+
+        if (!found)
+        {
+            char *argument = strdup(token.value.c_str());
+            currentSimpleCommand->insertArgument(argument);
+        }
+    }
+}
+else
+{
     char *argument = strdup(token.value.c_str());
     currentSimpleCommand->insertArgument(argument);
+}
 }
 
         // Pipe: save the current simple command
